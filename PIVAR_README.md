@@ -42,7 +42,14 @@ You can generate honeycomb pattern on the front face of the box.
 
 * **`pattern`**: Select the pattern type. If you dont want pattern set it to `None`.
     * `honeycomb`
+    * `diamond`
+    * `star`
+    * `plus`
+    * `slot`
+    * `square` 
 * **`p_radius`**: Defines the radius of the pattern.
 * **`p_depth`**: Sets the thickness of pattern.
 * **`p_clearence`**: Specifies the clearence in between patterns.
+* **`p_margin`**: Margin from the edge of the box.
 * **`p_engraved`**: Setting this to **`True`** makes the patters engraved, otherwise it is embossed.
+* **`p_invert`**: Inverts pattern's poket and extrude.

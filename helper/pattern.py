@@ -15,63 +15,26 @@ import cadquery as cq
 import math
 
 
-def get_height(obj: cq.Workplane, plane_name: str) -> float:
-    """
-    Returns the height of an object normal to the specified plane.
 
-    :param obj: The CadQuery Workplane/Object
-    :param plane_name: String name of the plane ('XY', 'XZ', or 'YZ')
-    :return: Float representing the dimension (thickness) normal to the plane
-    """
-    # 1. Map the plane to the normal axis dimension name
-    plane_map = {
-        "XY": "zlen",
-        "XZ": "ylen",
-        "YZ": "xlen"
-    }
-
-    axis_attr = plane_map.get(plane_name.upper())
-
-    if not axis_attr:
-        raise ValueError("plane_name must be 'XY', 'XZ', or 'YZ'")
-
-    bbox = obj.combine().val().BoundingBox()
-
-    dimension = getattr(bbox, axis_attr)
-
-    return dimension
-
-
-def get_plane_name(plane):
-    mapping = {
-        (0, 0, 1): "XY",
-        (0, 0, -1): "XY",
-        (0, -1, 0): "XZ",
-        (0, 1, 0): "XZ",
-        (1, 0, 0): "YZ",
-        (-1, 0, 0): "YZ"
-    }
-
-    z_tuple = (int(plane.zDir.x), int(plane.zDir.y), int(plane.zDir.z))
-    return mapping.get(z_tuple)
-
-
-def create_pattern(object: cq.Workplane, x_lim, y_lim,
-                         x_space, y_space, odd_row_shift=True) -> cq.Workplane:
+def create_pattern(object: cq.Workplane, size: tuple, depth, x_space, y_space,
+                   odd_row_shift=True, invert=False) -> cq.Workplane:
     """
     Generate distribution points within x and y limits, with w and h spaces.
 
     :param object: The CadQuery Workplane/Object that will be populated.
     :param x_lim: Dimention limit in x direction
     :param y_lim: Dimention limit in y direction
+    :param depth: Depth of the object
     :param x_space: Spacing in x
     :param y_space: Spacing in y
     """
+    x_lim, y_lim = size
+
     raw_points = []
     # intentinally going just out of limit.
-    cols = int(-(-x_lim // x_space))
-    rows = int(-(-y_lim // y_space))
-    
+    cols = int(x_lim // x_space) + 2
+    rows = int(y_lim // y_space) + 2
+
     for col in range(cols):
         for row in range(rows):
             x_pos = col * x_space
@@ -87,22 +50,26 @@ def create_pattern(object: cq.Workplane, x_lim, y_lim,
     centered_points = [(p[0] - avg_x, p[1] - avg_y) for p in raw_points]
 
     cut_frame = (
-        cq.Workplane(get_plane_name(object.plane))
-        .box(x_lim, y_lim, 2 * get_height(object, get_plane_name(object.plane)))
+        cq.Workplane('XY')
+        .box(x_lim, y_lim, depth * 2)
     )
 
-    x, y = centered_points[0]
-    result = object.translate((x, y, 0))
-    for x, y in centered_points[1:]:
-        result = result.union(object.translate((x, y, 0)))
+    result = (
+        cq.Workplane('XY')
+        .pushPoints(centered_points)
+        .eachpoint(lambda loc: object.val().located(loc), combine=True)
+    )
 
-    result = cut_frame.intersect(result)
+    if invert:
+        result = cut_frame.cut(result)
+    else:
+        result = cut_frame.intersect(result)
 
     return result
 
 
-def honeycomb(size: tuple, radius, depth, distance,
-              rotation: tuple = (0, 0, 0), translation: tuple = (0, 0, 0)) -> cq.Workplane:
+def honeycomb(size: tuple, radius, depth, distance, rotation: tuple, translation: tuple,
+              invert: bool) -> cq.Workplane:
     """
     Geneartes honeycomb pattern on XY plane cut out by size.
 
@@ -116,13 +83,7 @@ def honeycomb(size: tuple, radius, depth, distance,
     :param translation: translation parameter
     :type translation: tuple x y z
     """
-    
-    x_limit, y_limit = size
-    
-    # spacing in both width and height for hexagons in honeycomb
-    w = 1.5 * radius
-    h = math.sqrt(3) * radius
-    
+
     # resize the radius of the hexagons to have 'distance' in between
     dist_to_flat = (radius * math.sqrt(3)/2) - (distance / 2)
     actual_r = dist_to_flat / (math.sqrt(3)/2)
@@ -134,10 +95,167 @@ def honeycomb(size: tuple, radius, depth, distance,
         .extrude(depth)
     )
 
-    result = create_pattern(result, x_limit, y_limit, w, h, odd_row_shift=True)
+    # spacing in both width and height for hexagons in honeycomb
+    x = 1.5 * radius
+    y = math.sqrt(3) * radius
+    result = create_pattern(result, size, depth, x, y, odd_row_shift=True, invert=invert)
     
+    v1, v2, degree = rotation
+    result = result.rotate(v1, v2, degree)
+    result = result.translate(translation)
+    return result
+
+
+def diamond(size: tuple, radius, depth, distance, rotation: tuple, translation: tuple,
+            invert: bool) -> cq.Workplane:
+    """
+    Created diamond pattern on XY plane cut out by size.
+
+    :param size: limits in X and Y directions
+    :type size: tuple
+    :param radius: radius of the hexagons, radius will be reduced by the half of distance
+    :param depth: thickness of the patern
+    :param distance: distance between hexagons
+    :param rotation: rotation parameter
+    :type rotation: tuple vector0 vector1 degree
+    :param translation: translation parameter
+    :type translation: tuple x y z
+    """
+
+    disk = (
+        cq.Workplane('XY')
+        .circle(radius)
+        .extrude(depth)
+    )
+
+    cdisk = (
+        cq.Workplane('XY')
+        .circle(radius - distance)
+        .extrude(depth)
+    )
+
+    points = [
+        (radius, radius, 0),
+        (-radius, radius, 0),
+        (-radius, -radius, 0),
+        (radius, -radius, 0)
+    ]
+
+    disks = disk.translate(points[0])
+    for point in points[1:]:
+        disks = disks.union(disk.translate(point))
+
+    disk = cdisk.cut(disks)
+
+    # spacing in both width and height for hexagons in honeycomb
+    x = radius - distance
+    y = 2 * (radius - distance)
+    result = create_pattern(disk, size, depth, x, y, odd_row_shift=True, invert=invert)
+
     v1, v2, degree = rotation
     result = result.rotate(v1, v2, degree)
     result = result.translate(translation)
 
     return result
+
+
+def star(size: tuple, radius, depth, distance, rotation: tuple, translation: tuple,
+         invert: bool) -> cq.Workplane:
+    outer_radius = radius
+    inner_radius = radius * 0.4
+    points = []
+    for i in range(10):
+        # Alternate between outer and inner radius
+        r = outer_radius if i % 2 == 0 else inner_radius
+        angle = math.radians(i * 36)
+
+        x = r * math.cos(angle)
+        y = r * math.sin(angle)
+        points.append((x, y))
+
+    # Close the loop by adding the first point at the end
+    points.append(points[0])
+
+    star = (
+        cq.Workplane("XY")
+        .polyline(points)
+        .close()
+        .extrude(depth)
+        .rotate((0, 0, 0), (0, 0, 1), 18)
+    )
+
+    x = 2 * radius + distance
+    y = 2 * radius + distance
+    result = create_pattern(star, size, depth, x, y, odd_row_shift=False, invert=invert)
+
+    result = result.rotate(rotation[0], rotation[1], rotation[2])
+    result = result.translate(translation)
+
+    return result
+
+
+def plus(size: tuple, radius, depth, distance, rotation: tuple, translation: tuple,
+         invert: bool) -> cq.Workplane:
+
+    legth = 2 * radius
+
+    H = cq.Workplane("XY").slot2D(legth, legth / 4, angle=90)
+    V = cq.Workplane("XY").slot2D(legth, legth / 4)
+    plus = V.extrude(depth).union(H.extrude(depth))
+    # plus = plus.edges(">Z").fillet(depth / 2)
+
+    x = radius + radius / 4 + distance
+    y = 2 * radius + distance
+    result = create_pattern(plus, size, depth, x, y, odd_row_shift=True, invert=invert)
+
+    return result.rotate(rotation[0], rotation[1], rotation[2]).translate(translation)
+
+
+def slot(size: tuple, radius, depth, distance, rotation: tuple, translation: tuple,
+         invert: bool) -> cq.Workplane:
+    length = 2 * radius
+    slot = cq.Workplane("XY").slot2D(length, length / 4, angle=90).extrude(depth)
+
+    x = length / 4 + distance
+    y = 2 * radius + distance
+    result = create_pattern(slot, size, depth, x, y, odd_row_shift=True, invert=invert)
+
+    return result.rotate(rotation[0], rotation[1], rotation[2]).translate(translation)
+
+
+def square(size: tuple, radius, depth, distance, rotation: tuple, translation: tuple,
+           invert: bool)-> cq.Workplane:
+
+    length = 2 * radius
+
+    square = (
+        cq.Workplane("XY")
+        .box(length, length, depth)
+        .rotate((0, 0, 0), (0, 0, 1), 45)
+        .translate((0, 0, depth / 2))
+    )
+
+    x = (math.sqrt(2) * length) / 2 + distance
+    y = math.sqrt(2) * length + distance
+
+    result = create_pattern(square, size, depth, x, y, odd_row_shift=True, invert=invert)
+
+    return result.rotate(rotation[0], rotation[1], rotation[2]).translate(translation)
+
+
+def generate_pattern(type: str, size: tuple, radius, depth, distance,
+              rotation: tuple, translation: tuple, invert: bool) -> cq.Workplane:
+    if type == 'honeycomb':
+        return honeycomb(size, radius, depth, distance, rotation, translation, invert)
+    elif type == 'diamond':
+        return diamond(size, radius, depth, distance, rotation, translation, invert)
+    elif type == 'star':# resize the radius of the hexagons to have 
+        return star(size, radius, depth, distance, rotation, translation, invert)
+    elif type == 'plus':
+        return plus(size, radius, depth, distance, rotation, translation, invert)
+    elif type == 'slot':
+        return slot(size, radius, depth, distance, rotation, translation, invert)
+    elif type == 'square':
+        return square(size, radius, depth, distance, rotation, translation, invert)
+    else:
+        raise ValueError("Invalid pattern type")

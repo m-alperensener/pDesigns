@@ -16,7 +16,7 @@ import os
 import logging
 import cadquery as cq
 
-from helper.pattern import honeycomb
+from helper.pattern import generate_pattern
 
 # [Mount Parameters]s
 mount_count = 1
@@ -28,7 +28,7 @@ clearence = 0.2
 
 box_width = 40
 box_depth = 40
-box_height = 20
+box_height = 40
 box_wall_thickness = 1.6
 box_attachment_thickness = 3
 box_fillet_r = 4
@@ -43,11 +43,13 @@ font_height = 0.1
 engraved = True
 
 # [Pattern Parameters]
-pattern = 'honeycomb'
-p_radius = 2.5
+pattern = 'square'
+p_radius = 5
 p_depth = 0.4
-p_clearence = 0.8
+p_clearence = 1
+p_margin = 1.2
 p_engraved = True
+p_invert = True
 
 #_____________START  GENERATING BOX________________________
 logging.basicConfig(
@@ -220,8 +222,8 @@ else:
     logging.info("No lid text")
 
 # Add pattern to front
-sx = box_width - (2 * box_fillet_r) - 4
-sz = box_height -4
+sx = box_width - (2 * box_fillet_r) - (2 * p_margin)
+sz = box_height - (2 * p_margin)
 rotation = ((0, 0, 0), (1, 0, 0), 90)
 
 y = -box_depth
@@ -229,18 +231,19 @@ if p_engraved:
     y = y + p_depth
 translation = (0, y, -box_height / 2 + box_wall_thickness)
 
-if pattern is not None:
+if pattern:
     logging.info("Adding %s %s pattern",
                  "engraved" if p_engraved else "emmbossed", pattern)
+    u = generate_pattern(pattern, (sx, sz), p_radius, p_depth,
+                         p_clearence, rotation, translation,
+                         p_invert)
 else:
     logging.info("No pattern")
 
-if pattern == 'honeycomb':
-    u = honeycomb((sx, sz), p_radius, p_depth, p_clearence, rotation, translation)
-    if p_engraved:
-        box = box.cut(u)
-    else:
-        box = box.union(u)
+if p_engraved and pattern:
+    box = box.cut(u)
+else:
+    box = box.union(u)
 
 out_dir = f'output_pivar_{box_width}x{box_depth}x{box_height}'
 if not os.path.exists(out_dir):
