@@ -15,6 +15,12 @@ pip install -r requirements.txt
 
 Well the rest is easy... just run the python script!
 
+You can either change the box parameters in the script file or you can create JSON files to use to crete box. Better to use JSON files so you can save each config rather than chaging the script over and over. The parameters does not exists in JSON file are picked up script.
+
+```bash
+python3 pbox.py pbox_sample.json
+```
+
 # Models
 
 ## [pBox](PBOX_README.md)

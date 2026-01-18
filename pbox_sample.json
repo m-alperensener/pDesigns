@@ -1,0 +1,26 @@
+{
+    "height": 30,
+    "width": 60,
+    "length": 30,
+    "wall_thickness": 1.2,
+    "N": 1,
+    "M": 3,
+    "lid_thickness": 2,
+    "lid_handle_length": 10,
+    "lid_handle_height": 4,
+    "lid_handle_width": 3,
+    "lid_margin_top": 1.8,
+    "lid_margin_sides": 0.2,
+    "font_name": "DejaVu Sans",
+    "font_kind": "bold",
+    "font_size": 6.4,
+    "font_height": 0.2,
+    "engraved": true,
+    "vertical_text": true,
+    "text_list": [
+        "#1\npBox",
+        "#2\npBox",
+        "#3\npBox"
+    ],
+    "file_format": ".stl"
+}

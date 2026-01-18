@@ -14,6 +14,8 @@
 
 import os
 import logging
+import sys
+import json
 import cadquery as cq
 
 from helper.pattern import generate_pattern
@@ -57,6 +59,42 @@ logging.basicConfig(
     format='%(levelname)s: %(message)s',
     force=True
 )
+
+file_path = None
+if len(sys.argv) > 1:
+    file_path = sys.argv[1]
+
+if file_path is not None and os.path.exists(file_path):
+    logging.info(f"Using file: {file_path}")
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+        mount_count = data.get('mount_count', mount_count)
+        mount_thickness = data.get('mount_thickness', mount_thickness)
+        mount_beam_size = data.get('mount_beam_size', mount_beam_size)
+        dowel_length = data.get('dowel_length', dowel_length)
+        clearence = data.get('clearence', clearence)
+        box_width = data.get('box_width', box_width)
+        box_depth = data.get('box_depth', box_depth)
+        box_height = data.get('box_height', box_height)
+        box_wall_thickness = data.get('box_wall_thickness', box_wall_thickness)
+        box_attachment_thickness = data.get('box_attachment_thickness', box_attachment_thickness)
+        box_fillet_r = data.get('box_fillet_r', box_fillet_r)
+        lid_thickness = data.get('lid_thickness', lid_thickness)
+        lid_clearence = data.get('lid_clearence', lid_clearence)
+        lid_text = data.get('lid_text', lid_text)
+        font_name = data.get('font_name', font_name)
+        font_size = data.get('font_size', font_size)
+        font_height = data.get('font_height', font_height)
+        engraved = data.get('engraved', engraved)
+        pattern = data.get('pattern', pattern)
+        p_radius = data.get('p_radius', p_radius)
+        p_depth = data.get('p_depth', p_depth)
+        p_clearence = data.get('p_clearence', p_clearence)
+        p_margin = data.get('p_margin', p_margin)
+        p_engraved = data.get('p_engraved', p_engraved)
+        p_invert = data.get('p_invert', p_invert)
+else:
+    logging.info(f'Using parameters from script')
 
 # Create Mount Part
 if box_height < (mount_count * 32) + box_wall_thickness:

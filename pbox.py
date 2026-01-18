@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import os
+import sys
+import json
 import logging
 import cadquery as cq
 from pathvalidate import sanitize_filename
@@ -75,6 +77,35 @@ logging.basicConfig(
     format='%(levelname)s: %(message)s',
     force=True
 )
+
+file_path = None
+if len(sys.argv) > 1:
+    file_path = sys.argv[1]
+
+if file_path is not None and os.path.exists(file_path):
+    logging.info(f"Using file: {file_path}")
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+        height = data.get('height', height)
+        width = data.get('width', width)
+        length = data.get('length', length)
+        wall_thickness = data.get('wall_thickness', wall_thickness)
+        N = data.get('N', N)
+        M = data.get('M', M)
+        lid_thickness = data.get('lid_thickness', lid_thickness)
+        lid_margin_top = data.get('lid_margin_top', lid_margin_top)
+        lid_margin_sides = data.get('lid_margin_sides', lid_margin_sides)
+        font_name = data.get('font_name', font_name)
+        font_kind = data.get('font_kind', font_kind)
+        font_size = data.get('font_size', font_size)
+        font_height = data.get('font_height', font_height)
+        engraved = data.get('engraved', engraved)
+        vertical_text = data.get('vertical_text', vertical_text)
+        text_list = data.get('text_list', text_list)
+        file_format = data.get('file_format', file_format)
+else:
+    logging.info(f'Using parameters from script')
+
 
 logging.info("Generating unit box with width:%.2fmm, length:%.2fmm, height:%.2fmm",
              width, length, height)
@@ -241,14 +272,18 @@ for i, t in enumerate(text_list):
     translation = ((width * x) + x_offset - (lid_handle_width / 2),
                    (length * y) + y_offset,
                    z_offset_text)
+    
+    if vertical_text:
+        degree = 90
+    else:
+        degree = 0
+
     text = (
         cq.Workplane('XY')
         .text(t, font_size, font_height, font=font_name, kind=font_kind)
+        .rotate((0,0,0), (0,0,1), degree)
         .translate(translation)
         )
-    
-    if vertical_text:
-        text = text.rotate((0,0,0), (0,1,0), 90)
 
     lids[i] = lids[i].translate((width * x, length * y, 0))
     if engraved:
